@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct PostCardView: View {
-    @Binding var isLiked: Bool
+    
     let profileImage: String
     let username: String
     let location: String
@@ -16,6 +16,8 @@ struct PostCardView: View {
     let likesText: String
     let caption: String
     let timeText: String
+    var isLiked: Bool
+    let onLikedTapped: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0){
@@ -40,7 +42,7 @@ struct PostCardView: View {
         HStack(spacing: 18) {
             
             Button {
-                isLiked.toggle()
+                onLikedTapped()
             } label: {
                 Image(isLiked ? "Like" : "Like-2")
             }
