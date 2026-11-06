@@ -5,14 +5,9 @@
 //  Created by BY on 10/31/26.
 //
 
-import SwiftUI
 
-struct SignupRequestDTO: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
-    }
+struct SignupRequestDTO: Encodable {
+    let part: String
 }
 
-#Preview {
-    SignupRequestDTO()
-}
+

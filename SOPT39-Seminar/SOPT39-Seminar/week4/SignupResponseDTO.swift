@@ -5,14 +5,15 @@
 //  Created by BY on 10/31/26.
 //
 
-import SwiftUI
-
-struct SignupResponseDTO: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+struct SignupResponseDTO: Decodable {
+    let isSuccess: Bool?
+    let code: String?
+    let message: String?
+    let data: AuthorizationCodeData?
+    
+    struct AuthorizationCodeData: Decodable {
+        let authorizationCode: String?
     }
 }
 
-#Preview {
-    SignupResponseDTO()
-}
+
