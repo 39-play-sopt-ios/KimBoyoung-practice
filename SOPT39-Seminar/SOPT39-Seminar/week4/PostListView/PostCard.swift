@@ -29,10 +29,15 @@ struct PostCard: View {
                 .fill(Color(.gray3))
                 .frame(width: 1, height: 12)
 
-            Text(post.displayDate)
+            Text(displayDate)
         }
         .font(.m12)
         .foregroundStyle(Color(.gray3))
+    }
+
+    private var displayDate: String {
+        String(post.createdAt.prefix(10))
+            .replacingOccurrences(of: "-", with: ".")
     }
 
     private var postContent: some View {

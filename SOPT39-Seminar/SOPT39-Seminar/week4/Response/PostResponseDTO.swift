@@ -5,8 +5,6 @@
 //  Created by BY on 11/6/26.
 //
 
-import Foundation
-
 struct PostResponseDTO: Identifiable, Decodable {
     let id: Int
     let title: String
@@ -14,11 +12,6 @@ struct PostResponseDTO: Identifiable, Decodable {
     let author: String
     let createdAt: String
     let updatedAt: String
-
-    var displayDate: String {
-        String(createdAt.prefix(10))
-            .replacingOccurrences(of: "-", with: ".")
-    }
 }
 
 extension PostResponseDTO {
