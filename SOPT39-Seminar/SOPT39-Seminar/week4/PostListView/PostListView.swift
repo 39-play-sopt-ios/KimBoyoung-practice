@@ -16,8 +16,10 @@ struct PostListView: View {
     @State private var isPostSheetPresented = false
     @State private var isLoading = false
     @State private var isCreatingPost = false
+    @State private var isDeletingPost = false
     @State private var errorMessage = ""
-    @State private var createErrorMessage = ""
+    @State private var requestErrorMessage = ""
+    @State private var postToDelete: PostResponseDTO?
 
     init(
         authorizationCode: String = "",
@@ -56,19 +58,40 @@ struct PostListView: View {
                 .presentationCornerRadius(24)
         }
         .alert(
-            "게시글 작성 실패",
+            "요청 실패",
             isPresented: Binding(
-                get: { !createErrorMessage.isEmpty },
+                get: { !requestErrorMessage.isEmpty },
                 set: { isPresented in
                     if !isPresented {
-                        createErrorMessage = ""
+                        requestErrorMessage = ""
                     }
                 }
             )
         ) {
             Button("확인", role: .cancel) {}
         } message: {
-            Text(createErrorMessage)
+            Text(requestErrorMessage)
+        }
+        .alert(
+            "게시글을 삭제할까요?",
+            isPresented: Binding(
+                get: { postToDelete != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        postToDelete = nil
+                    }
+                }
+            ),
+            presenting: postToDelete
+        ) { post in
+            Button("삭제", role: .destructive) {
+                Task {
+                    await deletePost(post)
+                }
+            }
+            Button("취소", role: .cancel) {}
+        } message: { _ in
+            Text("삭제한 게시글은 복구할 수 없습니다.")
         }
         .task {
             guard posts.isEmpty else { return }
@@ -104,6 +127,15 @@ struct PostListView: View {
                 LazyVStack(spacing: 12) {
                     ForEach(posts) { post in
                         PostCard(post: post)
+                            .contextMenu {
+                                if post.author == author {
+                                    Button(role: .destructive) {
+                                        postToDelete = post
+                                    } label: {
+                                        Label("삭제", systemImage: "trash")
+                                    }
+                                }
+                            }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -138,7 +170,7 @@ struct PostListView: View {
         guard !isCreatingPost else { return }
 
         isCreatingPost = true
-        createErrorMessage = ""
+        requestErrorMessage = ""
         defer { isCreatingPost = false }
 
         do {
@@ -156,7 +188,28 @@ struct PostListView: View {
             posts.insert(createdPost, at: 0)
         } catch is CancellationError {
         } catch {
-            createErrorMessage = error.localizedDescription
+            requestErrorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func deletePost(_ post: PostResponseDTO) async {
+        guard !isDeletingPost else { return }
+
+        isDeletingPost = true
+        requestErrorMessage = ""
+        defer { isDeletingPost = false }
+
+        do {
+            _ = try await PostService.shared.deletePost(
+                postID: post.id,
+                authorizationCode: authorizationCode
+            )
+            try Task.checkCancellation()
+            posts.removeAll { $0.id == post.id }
+        } catch is CancellationError {
+        } catch {
+            requestErrorMessage = error.localizedDescription
         }
     }
 }
