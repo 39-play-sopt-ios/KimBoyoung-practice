@@ -47,6 +47,11 @@ struct PostListView: View {
             .padding(.trailing, 16)
             .padding(.bottom, 16)
         }
+        .overlay {
+            if let postToDelete {
+                deleteModal(for: postToDelete)
+            }
+        }
         .sheet(isPresented: $isPostSheetPresented) {
             PostEditorSheet { title, content in
                 Task {
@@ -72,31 +77,72 @@ struct PostListView: View {
         } message: {
             Text(requestErrorMessage)
         }
-        .alert(
-            "게시글을 삭제할까요?",
-            isPresented: Binding(
-                get: { postToDelete != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        postToDelete = nil
-                    }
-                }
-            ),
-            presenting: postToDelete
-        ) { post in
-            Button("삭제", role: .destructive) {
-                Task {
-                    await deletePost(post)
-                }
-            }
-            Button("취소", role: .cancel) {}
-        } message: { _ in
-            Text("삭제한 게시글은 복구할 수 없습니다.")
-        }
         .task {
             guard posts.isEmpty else { return }
             await fetchPosts()
         }
+    }
+
+    private func deleteModal(for post: PostResponseDTO) -> some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    postToDelete = nil
+                }
+
+            VStack(spacing: 20) {
+                Text("게시글을 삭제할까요?")
+                    .font(.m18)
+                    .tracking(-0.18)
+                    .foregroundStyle(Color(.gray6))
+                    .frame(maxWidth: .infinity)
+
+                HStack(spacing: 12) {
+                    modalButton(
+                        title: "취소",
+                        backgroundColor: Color(.gray1),
+                        foregroundColor: Color(.gray5)
+                    ) {
+                        postToDelete = nil
+                    }
+
+                    modalButton(
+                        title: "삭제",
+                        backgroundColor: Color(.black),
+                        foregroundColor: Color(.gray1)
+                    ) {
+                        postToDelete = nil
+                        Task {
+                            await deletePost(post)
+                        }
+                    }
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity)
+            .background(Color(.white), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 36)
+        }
+        .ignoresSafeArea()
+    }
+
+    private func modalButton(
+        title: String,
+        backgroundColor: Color,
+        foregroundColor: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.sb14)
+                .tracking(-0.14)
+                .foregroundStyle(foregroundColor)
+                .frame(maxWidth: .infinity)
+                .frame(height: 49)
+                .background(backgroundColor, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -127,14 +173,9 @@ struct PostListView: View {
                 LazyVStack(spacing: 12) {
                     ForEach(posts) { post in
                         PostCard(post: post)
-                            .contextMenu {
-                                if post.author == author {
-                                    Button(role: .destructive) {
-                                        postToDelete = post
-                                    } label: {
-                                        Label("삭제", systemImage: "trash")
-                                    }
-                                }
+                            .contentShape(Rectangle())
+                            .onLongPressGesture {
+                                postToDelete = post
                             }
                     }
                 }
@@ -182,10 +223,15 @@ struct PostListView: View {
             )
             try Task.checkCancellation()
 
-            guard let createdPost = response.data else {
-                throw NetworkError.responseError
+            guard response.isSuccess else {
+                throw NetworkError.serverError(
+                    message: response.message
+                )
             }
-            posts.insert(createdPost, at: 0)
+
+            let postListResponse = try await PostService.shared.getPosts()
+            try Task.checkCancellation()
+            posts = postListResponse.data?.posts ?? []
         } catch is CancellationError {
         } catch {
             requestErrorMessage = error.localizedDescription
@@ -201,12 +247,21 @@ struct PostListView: View {
         defer { isDeletingPost = false }
 
         do {
-            _ = try await PostService.shared.deletePost(
+            let deleteResponse = try await PostService.shared.deletePost(
                 postID: post.id,
                 authorizationCode: authorizationCode
             )
             try Task.checkCancellation()
-            posts.removeAll { $0.id == post.id }
+
+            guard deleteResponse.isSuccess else {
+                throw NetworkError.serverError(
+                    message: deleteResponse.message
+                )
+            }
+
+            let postListResponse = try await PostService.shared.getPosts()
+            try Task.checkCancellation()
+            posts = postListResponse.data?.posts ?? []
         } catch is CancellationError {
         } catch {
             requestErrorMessage = error.localizedDescription
