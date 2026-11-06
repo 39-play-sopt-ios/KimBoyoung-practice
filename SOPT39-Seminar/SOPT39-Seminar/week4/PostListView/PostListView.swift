@@ -8,13 +8,24 @@
 import SwiftUI
 
 struct PostListView: View {
+    let authorizationCode: String
+    let author: String
+
     @State private var posts: [PostResponseDTO]
     @State private var searchText = ""
     @State private var isPostSheetPresented = false
     @State private var isLoading = false
+    @State private var isCreatingPost = false
     @State private var errorMessage = ""
+    @State private var createErrorMessage = ""
 
-    init(posts: [PostResponseDTO] = []) {
+    init(
+        authorizationCode: String = "",
+        author: String = "",
+        posts: [PostResponseDTO] = []
+    ) {
+        self.authorizationCode = authorizationCode
+        self.author = author
         _posts = State(initialValue: posts)
     }
 
@@ -35,10 +46,29 @@ struct PostListView: View {
             .padding(.bottom, 16)
         }
         .sheet(isPresented: $isPostSheetPresented) {
-            PostEditorSheet(onSubmit: addPost)
+            PostEditorSheet { title, content in
+                Task {
+                    await createPost(title: title, content: content)
+                }
+            }
                 .presentationDetents([.height(265)])
                 .presentationDragIndicator(.hidden)
                 .presentationCornerRadius(24)
+        }
+        .alert(
+            "게시글 작성 실패",
+            isPresented: Binding(
+                get: { !createErrorMessage.isEmpty },
+                set: { isPresented in
+                    if !isPresented {
+                        createErrorMessage = ""
+                    }
+                }
+            )
+        ) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(createErrorMessage)
         }
         .task {
             guard posts.isEmpty else { return }
@@ -103,20 +133,31 @@ struct PostListView: View {
         }
     }
 
-    private func addPost(title: String, content: String) {
-        let nextID = (posts.map(\.id).max() ?? 0) + 1
-        let currentDate = Date.now.ISO8601Format()
+    @MainActor
+    private func createPost(title: String, content: String) async {
+        guard !isCreatingPost else { return }
 
-        let newPost = PostResponseDTO(
-            id: nextID,
-            title: title,
-            content: content,
-            author: "김보영",
-            createdAt: currentDate,
-            updatedAt: currentDate
-        )
+        isCreatingPost = true
+        createErrorMessage = ""
+        defer { isCreatingPost = false }
 
-        posts.insert(newPost, at: 0)
+        do {
+            let response = try await PostService.shared.createPost(
+                title: title,
+                content: content,
+                author: author,
+                authorizationCode: authorizationCode
+            )
+            try Task.checkCancellation()
+
+            guard let createdPost = response.data else {
+                throw NetworkError.responseError
+            }
+            posts.insert(createdPost, at: 0)
+        } catch is CancellationError {
+        } catch {
+            createErrorMessage = error.localizedDescription
+        }
     }
 }
 

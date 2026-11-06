@@ -8,11 +8,19 @@
 import SwiftUI
 
 struct PostSignUpView: View {
+    let onSignup: (_ authorizationCode: String, _ name: String) -> Void
+
     @State private var part = ""
     @State private var name = ""
     @State private var isLoading = false
     @State private var authorizationCode = ""
     @State private var errorMessage = ""
+
+    init(
+        onSignup: @escaping (_ authorizationCode: String, _ name: String) -> Void = { _, _ in }
+    ) {
+        self.onSignup = onSignup
+    }
     
     var body: some View {
         VStack(alignment: .center, spacing: 20) {
@@ -75,6 +83,12 @@ struct PostSignUpView: View {
     
     private func signupButtonDidTap() async {
         guard !isLoading else { return }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = "이름을 입력해주세요."
+            return
+        }
         
         isLoading = true
         authorizationCode = ""
@@ -89,6 +103,7 @@ struct PostSignUpView: View {
                 throw NetworkError.responseError
             }
             authorizationCode = code
+            onSignup(code, trimmedName)
         } catch is CancellationError {
             //취소는 요청 실패로 표시하지 않는다.
         } catch {

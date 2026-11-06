@@ -9,9 +9,22 @@ import SwiftUI
 
 @main
 struct SOPT39_SeminarApp: App {
+    @State private var authorizationCode: String?
+    @State private var author = ""
+
     var body: some Scene {
         WindowGroup {
-            PostListView()
+            if let authorizationCode {
+                PostListView(
+                    authorizationCode: authorizationCode,
+                    author: author
+                )
+            } else {
+                PostSignUpView { code, name in
+                    authorizationCode = code
+                    author = name
+                }
+            }
         }
     }
 }
